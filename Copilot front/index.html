@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Coach Trainer - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @keyframes spectrum {
+            0%, 100% { height: 12px; opacity: 0.4; }
+            50% { height: 24px; opacity: 1; }
+        }
+        
+        .spectrum-bar {
+            width: 3px;
+            background: linear-gradient(to top, #3b82f6, #60a5fa);
+            margin: 0 2px;
+            border-radius: 2px;
+            transition: height 0.1s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen pb-32">
+
+    <header class="bg-white border-b p-6 sticky top-0 z-10 flex justify-between items-center">
+        <h1 class="text-2xl font-black text-gray-800 flex items-center gap-2">
+            <i data-lucide="dumbbell" class="text-blue-600"></i> CoachNotes
+        </h1>
+        <button onclick="loadDashboard()" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-500"></i>
+        </button>
+    </header>
+
+    <main id="dashboard" class="p-6 max-w-6xl mx-auto space-y-6">
+        <div class="flex flex-col items-center justify-center py-20 text-gray-400">
+            <div class="animate-spin mb-4"><i data-lucide="loader-2"></i></div>
+            <p>Connecting to server...</p>
+        </div>
+    </main>
+
+    <div class="fixed bottom-0 left-0 right-0 p-8 flex justify-center bg-gradient-to-t from-gray-50 via-gray-50 to-transparent">
+        <button onclick="openModal()" class="bg-blue-600 text-white px-10 py-5 rounded-full shadow-2xl flex items-center gap-3 hover:scale-105 active:scale-95 transition-all">
+            <i data-lucide="mic" class="w-6 h-6"></i>
+            <span class="text-lg font-bold">New Voice Note</span>
+        </button>
+    </div>
+
+    <!-- MAIN MODAL -->
+    <div id="modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4 backdrop-blur-md">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl transition-all">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <h2 class="font-bold text-gray-700">Process Training Note</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-black p-2">✕</button>
+            </div>
+            
+            <div id="modal-content" class="p-8">
+                <!-- RECORDING STEP -->
+                <div id="step-idle" class="flex flex-col items-center py-6">
+                    <button id="recordBtn" class="w-28 h-28 bg-red-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-red-200 hover:bg-red-600 transition-all">
+                        <i data-lucide="mic" class="w-12 h-12"></i>
+                    </button>
+                    <p id="recordStatus" class="mt-6 text-gray-500 font-medium animate-pulse">Press to record</p>
+                    
+                    <!-- Audio Spectrum Visualization -->
+                    <div id="audioSpectrum" class="hidden mt-6 flex flex-col items-center">
+                        <div class="flex items-center justify-center gap-1 mb-4 h-16">
+                            <div class="spectrum-bar" id="bar-0" style="height: 12px;"></div>
+                            <div class="spectrum-bar" id="bar-1" style="height: 12px;"></div>
+                            <div class="spectrum-bar" id="bar-2" style="height: 12px;"></div>
+                            <div class="spectrum-bar" id="bar-3" style="height: 12px;"></div>
+                            <div class="spectrum-bar" id="bar-4" style="height: 12px;"></div>
+                            <div class="spectrum-bar" id="bar-5" style="height: 12px;"></div>
+                            <div class="spectrum-bar" id="bar-6" style="height: 12px;"></div>
+                            <div class="spectrum-bar" id="bar-7" style="height: 12px;"></div>
+                        </div>
+                        <p id="recordingTimer" class="text-lg font-bold text-blue-600">00:00</p>
+                    </div>
+                    
+                    <div id="recordingControls" class="hidden mt-6 flex gap-3">
+                        <button id="acceptRecordBtn" onclick="stopAndProcess()" class="px-6 py-2 bg-green-500 text-white rounded-full font-bold hover:bg-green-600 transition-all flex items-center gap-2">
+                            <i data-lucide="check" class="w-4 h-4"></i> Accept
+                        </button>
+                        <button id="cancelRecordBtn" onclick="cancelRecording()" class="px-6 py-2 bg-red-300 text-red-700 rounded-full font-bold hover:bg-red-400 transition-all flex items-center gap-2">
+                            <i data-lucide="x" class="w-4 h-4"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PROCESSING STEP -->
+                <div id="step-loading" class="hidden flex flex-col items-center py-10">
+                    <div class="relative w-20 h-20">
+                        <div class="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
+                        <div class="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                    </div>
+                    <p class="mt-6 text-blue-600 font-bold">Working...</p>
+                </div>
+
+                <!-- CONFIRMATION STEP -->
+                <div id="step-confirm" class="hidden space-y-5 max-h-[80vh] overflow-y-auto">
+                    <!-- Original Transcription (Hidden) -->
+                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                        <button onclick="toggleTranscription()" class="w-full flex items-center justify-between text-left font-bold text-gray-700 hover:text-gray-900">
+                            <span class="text-sm uppercase tracking-widest">Original Transcription</span>
+                            <i id="transcriptToggle" data-lucide="chevron-down" class="w-5 h-5 transition-transform"></i>
+                        </button>
+                        <p id="originalText" class="hidden mt-3 text-gray-600 text-sm leading-relaxed bg-white p-3 rounded-lg border border-gray-100"></p>
+                    </div>
+
+                    <!-- Client Selection -->
+                    <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                        <label class="text-[10px] font-black text-blue-800 uppercase tracking-widest block mb-2">Identified Client</label>
+                        <div id="candidateList" class="flex flex-wrap gap-2 mb-3"></div>
+                        <p id="noCandidates" class="hidden text-xs text-amber-600 font-medium mb-3">No client detected automatically.</p>
+                        
+                        <!-- Manual Search - Always Available -->
+                        <div class="mt-3 pt-3 border-t border-blue-200">
+                            <input type="text" id="manualClientSearch" placeholder="Search client manually..." class="w-full p-2 border border-blue-200 rounded-lg text-sm focus:border-blue-500 outline-none">
+                            <div id="searchResults" class="mt-2 space-y-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- Note Texts -->
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Coach Notes</label>
+                                <button onclick="copyToClipboard(document.getElementById('textImproved').value, this)" class="text-xs text-gray-500 hover:text-blue-600 font-bold p-1 rounded transition-colors flex items-center gap-1">
+                                    <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                                </button>
+                            </div>
+                            <textarea id="textImproved" class="w-full mt-1 p-4 border-2 border-gray-100 rounded-2xl text-sm h-24 focus:border-blue-500 outline-none transition-all"></textarea>
+                            <button onclick="reprocessNote()" class="mt-2 text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1">
+                                <i data-lucide="zap" class="w-3 h-3"></i> Re-process with AI
+                            </button>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Client Message</label>
+                                <button onclick="copyToClipboard(document.getElementById('textClient').value, this)" class="text-xs text-gray-500 hover:text-green-600 font-bold p-1 rounded transition-colors flex items-center gap-1">
+                                    <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                                </button>
+                            </div>
+                            <textarea id="textClient" class="w-full mt-1 p-4 border-2 border-gray-100 rounded-2xl text-sm h-24 focus:border-blue-500 outline-none transition-all"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3">
+                        <button id="saveBtn" disabled class="flex-1 py-4 bg-green-600 text-white rounded-2xl font-black hover:bg-green-700 shadow-lg shadow-green-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600">
+                            SAVE NOTE
+                        </button>
+                        <button onclick="discardNote()" class="flex-1 py-4 bg-red-100 text-red-700 rounded-2xl font-black hover:bg-red-200 transition-all">
+                            DISCARD
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT MODAL -->
+    <div id="editModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4 backdrop-blur-md">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <h2 class="font-bold text-gray-700">Edit Note</h2>
+                <button onclick="closeEditModal()" class="text-gray-400 hover:text-black p-2">✕</button>
+            </div>
+            
+            <div class="p-8 space-y-5 max-h-[80vh] overflow-y-auto">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Coach Notes</label>
+                        <button onclick="copyToClipboard(document.getElementById('editTextImproved').value, this)" class="text-xs text-gray-500 hover:text-blue-600 font-bold p-1 rounded transition-colors flex items-center gap-1">
+                            <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                        </button>
+                    </div>
+                    <textarea id="editTextImproved" class="w-full mt-1 p-4 border-2 border-gray-100 rounded-2xl text-sm h-24 focus:border-blue-500 outline-none transition-all"></textarea>
+                    <button onclick="reprocessEditedNote()" class="mt-2 text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1">
+                        <i data-lucide="zap" class="w-3 h-3"></i> Improve with AI
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Client Message</label>
+                        <button onclick="copyToClipboard(document.getElementById('editTextClient').value, this)" class="text-xs text-gray-500 hover:text-green-600 font-bold p-1 rounded transition-colors flex items-center gap-1">
+                            <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                        </button>
+                    </div>
+                    <textarea id="editTextClient" class="w-full mt-1 p-4 border-2 border-gray-100 rounded-2xl text-sm h-24 focus:border-blue-500 outline-none transition-all"></textarea>
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="saveEditedNote()" class="flex-1 py-4 bg-green-600 text-white rounded-2xl font-black hover:bg-green-700 shadow-lg shadow-green-100 transition-all">
+                        UPDATE NOTE
+                    </button>
+                    <button onclick="closeEditModal()" class="flex-1 py-4 bg-gray-200 text-gray-700 rounded-2xl font-black hover:bg-gray-300 transition-all">
+                        CANCEL
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = "http://127.0.0.1:8001";
+        let mediaRecorder;
+        let audioChunks = [];
+        let selectedClientId = null;
+        let rawData = null;
+        let allClients = [];
+        let editingNoteId = null;
+        let mediaStream = null;
+        let isCancelled = false;
+        let microphoneStream = null; // Persistent microphone stream
+        let recordingStartTime = null;
+        let recordingTimerInterval = null;
+        let audioContext = null;
+        let analyser = null;
+        let animationFrameId = null;
+
+        // Initialization
+        window.onload = () => {
+            lucide.createIcons();
+            loadDashboard();
+            // Request microphone permission on app start
+            requestMicrophonePermission();
+        };
+
+        // Request microphone permission once on app start (but don't keep it active)
+        async function requestMicrophonePermission() {
+            try {
+                // Check if permission has already been requested
+                if (localStorage.getItem('micPermissionRequested')) {
+                    return; // Already requested, don't ask again
+                }
+
+                // Request permission briefly, then stop the stream
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Stop all tracks immediately - we just wanted to request permission
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Mark that permission has been requested
+                localStorage.setItem('micPermissionRequested', 'true');
+                console.log('Microphone permission granted');
+            } catch (err) {
+                console.log('Microphone permission denied or not yet decided');
+                // Mark that we attempted to request it
+                localStorage.setItem('micPermissionRequested', 'true');
+            }
+        }
+
+        // Copy to clipboard helper
+        function copyToClipboard(text, btn) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Copied!';
+                btn.classList.add('bg-green-100', 'text-green-700');
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('bg-green-100', 'text-green-700');
+                    lucide.createIcons();
+                }, 2000);
+            }).catch(err => {
+                alert('Error copying to clipboard');
+            });
+        }
+
+        // --- DASHBOARD: Load notes ---
+        async function loadDashboard() {
+            try {
+                const res = await fetch(`${API_URL}/get-all-notes`);
+                const notes = await res.json();
+                const container = document.getElementById('dashboard');
+
+                if (!notes || notes.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-20">
+                            <i data-lucide="calendar-x-2" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+                            <p class="text-gray-500 font-medium">No notes registered yet.</p>
+                        </div>`;
+                    lucide.createIcons();
+                    return;
+                }
+
+                // Group notes by client name
+                const grouped = notes.reduce((acc, note) => {
+                    const name = note.profiles?.full_name || "Unknown Client";
+                    const clientId = note.client_id;
+                    if (!acc[clientId]) {
+                        acc[clientId] = { name, notes: [] };
+                    }
+                    acc[clientId].notes.push(note);
+                    return acc;
+                }, {});
+
+                container.innerHTML = Object.entries(grouped).map(([clientId, { name, notes: clientNotes }]) => `
+                    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                        <button onclick="toggleClientGroup('${clientId}')" class="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition-colors">
+                            <h2 class="text-xl font-black text-gray-800 flex items-center gap-2">
+                                <span class="w-2 h-6 bg-blue-600 rounded-full"></span> 
+                                ${name}
+                                <span class="text-sm font-normal text-gray-500">(${clientNotes.length})</span>
+                            </h2>
+                            <i id="toggle-${clientId}" data-lucide="chevron-down" class="w-6 h-6 text-gray-400 transition-transform"></i>
+                        </button>
+                        
+                        <div id="group-${clientId}" class="hidden border-t border-gray-100 divide-y divide-gray-100">
+                            ${clientNotes.map((n, idx) => `
+                                <div class="p-6 hover:bg-gray-50 transition-colors">
+                                    <div class="flex justify-between items-start mb-4">
+                                        <span class="text-[10px] font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-full uppercase italic">
+                                            ${new Date(n.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' })}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Original Transcription Toggle -->
+                                    <button onclick="toggleNoteTranscript(this)" class="text-xs text-gray-500 hover:text-gray-700 mb-3 flex items-center gap-1">
+                                        <i data-lucide="eye" class="w-3 h-3"></i>
+                                        Show original transcription
+                                    </button>
+                                    <p class="hidden text-xs text-gray-600 bg-gray-50 p-3 rounded-lg mb-3 border border-gray-200 italic">${n.content_original}</p>
+                                    
+                                    <div class="mb-3">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <strong class="text-sm">Coach Notes:</strong>
+                                            <button onclick="copyToClipboard(\`${n.content_improved}\`, this)" class="text-xs text-gray-500 hover:text-blue-600 font-bold p-1 rounded transition-colors flex items-center gap-1">
+                                                <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                                            </button>
+                                        </div>
+                                        <p class="text-gray-800 text-sm leading-relaxed">${n.content_improved}</p>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <strong class="text-xs text-gray-500">Client Message:</strong>
+                                            <button onclick="copyToClipboard(\`${n.content_client_ready}\`, this)" class="text-xs text-gray-500 hover:text-green-600 font-bold p-1 rounded transition-colors flex items-center gap-1">
+                                                <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                                            </button>
+                                        </div>
+                                        <p class="text-green-600 text-sm italic bg-green-50 p-3 rounded-xl border border-green-100">
+                                            "${n.content_client_ready}"
+                                        </p>
+                                    </div>
+                                    
+                                    <button onclick="openEditNote('${n.id}', \`${n.content_improved}\`, \`${n.content_client_ready}\`)" class="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1">
+                                        <i data-lucide="edit-2" class="w-3 h-3"></i> Edit Note
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+                
+                lucide.createIcons();
+            } catch (error) {
+                console.error(error);
+                document.getElementById('dashboard').innerHTML = `<p class="text-red-500 text-center">Error connecting to server.</p>`;
+            }
+        }
+
+        function toggleClientGroup(clientId) {
+            const group = document.getElementById(`group-${clientId}`);
+            const toggle = document.getElementById(`toggle-${clientId}`);
+            group.classList.toggle('hidden');
+            toggle.style.transform = group.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+
+        function toggleNoteTranscript(btn) {
+            const transcript = btn.nextElementSibling;
+            transcript.classList.toggle('hidden');
+            btn.innerHTML = transcript.classList.contains('hidden') 
+                ? '<i data-lucide="eye" class="w-3 h-3"></i> Show original transcription'
+                : '<i data-lucide="eye-off" class="w-3 h-3"></i> Hide original transcription';
+            lucide.createIcons();
+        }
+
+        // --- RECORDING ---
+        const recordBtn = document.getElementById('recordBtn');
+        const recordStatus = document.getElementById('recordStatus');
+
+        recordBtn.onclick = async () => {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                try {
+                    // Only request microphone when actually recording
+                    if (!microphoneStream) {
+                        microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    }
+                    
+                    mediaRecorder = new MediaRecorder(microphoneStream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = sendToProcess;
+                    mediaRecorder.start();
+                    
+                    // Initialize Web Audio API for real-time spectrum analysis
+                    if (!audioContext) {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    const source = audioContext.createMediaStreamSource(microphoneStream);
+                    source.connect(analyser);
+                    
+                    // Start recording UI
+                    recordBtn.classList.add('hidden');
+                    recordStatus.classList.add('hidden');
+                    document.getElementById('audioSpectrum').classList.remove('hidden');
+                    document.getElementById('recordingControls').classList.remove('hidden');
+                    
+                    // Start timer
+                    recordingStartTime = Date.now();
+                    recordingTimerInterval = setInterval(updateRecordingTimer, 100);
+                    
+                    // Start spectrum animation
+                    updateSpectrum();
+                } catch (err) {
+                    alert("Microphone access denied");
+                }
+            }
+        };
+
+        // Update spectrum bars based on audio frequency
+        function updateSpectrum() {
+            if (!analyser) return;
+            
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Update 8 bars
+            const barCount = 8;
+            for (let i = 0; i < barCount; i++) {
+                const index = Math.floor(i * dataArray.length / barCount);
+                const frequency = dataArray[index];
+                const height = Math.max(12, (frequency / 255) * 60);
+                document.getElementById(`bar-${i}`).style.height = height + 'px';
+            }
+            
+            // Continue animation while recording
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                animationFrameId = requestAnimationFrame(updateSpectrum);
+            }
+        }
+
+        // Update recording timer
+        function updateRecordingTimer() {
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            document.getElementById('recordingTimer').innerText = timeStr;
+        }
+
+        // Stop and process the recording
+        function stopAndProcess() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                // Stop timer and spectrum
+                clearInterval(recordingTimerInterval);
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                
+                mediaRecorder.stop();
+                document.getElementById('audioSpectrum').classList.add('hidden');
+                document.getElementById('recordingControls').classList.add('hidden');
+                recordBtn.classList.remove('hidden');
+                recordStatus.classList.remove('hidden');
+                recordStatus.innerText = "Processing...";
+                recordStatus.classList.add('animate-pulse');
+            }
+        }
+
+        // Stop microphone stream immediately after recording
+        function stopMicrophoneStream() {
+            if (microphoneStream) {
+                microphoneStream.getTracks().forEach(track => track.stop());
+                microphoneStream = null;
+            }
+        }
+
+        // Cancel recording without processing
+        function cancelRecording() {
+            isCancelled = true;
+            // Stop timer and spectrum
+            clearInterval(recordingTimerInterval);
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+            // Stop the microphone immediately
+            stopMicrophoneStream();
+            audioChunks = [];
+            document.getElementById('audioSpectrum').classList.add('hidden');
+            document.getElementById('recordingControls').classList.add('hidden');
+            recordBtn.classList.remove('hidden');
+            recordStatus.classList.remove('hidden');
+            recordStatus.innerText = "Press to record";
+            recordStatus.classList.add('animate-pulse');
+            // Reset mediaRecorder so a new one can be created
+            mediaRecorder = null;
+        }
+
+        // --- PROCESSING ---
+        async function sendToProcess() {
+            // If recording was cancelled, don't process
+            if (isCancelled) {
+                isCancelled = false;
+                return;
+            }
+
+            // Stop the microphone immediately after recording
+            stopMicrophoneStream();
+            
+            showStep('loading');
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'recording.wav');
+
+            try {
+                const res = await fetch(`${API_URL}/process-voice-note`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                // Fetch all clients for manual search
+                const clientsRes = await fetch(`${API_URL}/get-all-clients`);
+                if (clientsRes.ok) {
+                    allClients = await clientsRes.json();
+                }
+                
+                rawData = data;
+                renderConfirm(data);
+            } catch (err) {
+                alert("Server error. Check port 8001");
+                showStep('idle');
+                recordStatus.innerText = "Press to record";
+            }
+        }
+
+        function renderConfirm(data) {
+            showStep('confirm');
+            document.getElementById('textImproved').value = data.content_improved;
+            document.getElementById('textClient').value = data.content_client_ready;
+            document.getElementById('originalText').innerText = data.original_text;
+            
+            // Disable save button until client is selected
+            document.getElementById('saveBtn').disabled = true;
+            
+            const list = document.getElementById('candidateList');
+            const noCand = document.getElementById('noCandidates');
+            list.innerHTML = '';
+            selectedClientId = null;
+
+            if (data.candidates && data.candidates.length > 0) {
+                noCand.classList.add('hidden');
+                data.candidates.forEach(c => {
+                    const btn = document.createElement('button');
+                    btn.className = "px-4 py-2 rounded-xl border-2 border-gray-100 text-sm font-bold transition-all hover:border-blue-200";
+                    btn.innerText = c.full_name;
+                    btn.onclick = () => selectClient(c.id, btn, c.full_name);
+                    list.appendChild(btn);
+                });
+                // Auto-select if only one
+                if (data.candidates.length === 1) {
+                    list.firstChild.click();
+                }
+            } else {
+                noCand.classList.remove('hidden');
+            }
+            
+            // Always show manual search
+            setupManualSearch();
+        }
+
+        function selectClient(clientId, btn, clientName) {
+            selectedClientId = clientId;
+            document.querySelectorAll('#candidateList button').forEach(b => {
+                b.classList.remove('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-md');
+                b.classList.add('border-gray-100');
+            });
+            btn.classList.remove('border-gray-100');
+            btn.classList.add('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-md');
+            
+            // Update client name in generated texts if needed
+            if (clientName && rawData) {
+                updateClientNameInTexts(clientName);
+            }
+            
+            // Enable save button when client is selected
+            document.getElementById('saveBtn').disabled = false;
+        }
+
+        function updateClientNameInTexts(clientName) {
+            // You can enhance the texts with the client name if desired
+            // For now, the AI already includes the name in the generated content
+            // This function can be extended if you want to modify the texts further
+        }
+
+        function setupManualSearch() {
+            const searchInput = document.getElementById('manualClientSearch');
+            searchInput.oninput = () => {
+                const query = searchInput.value.toLowerCase();
+                const results = document.getElementById('searchResults');
+                results.innerHTML = '';
+                
+                if (query.length < 1) return;
+                
+                const filtered = allClients.filter(c => 
+                    c.full_name.toLowerCase().includes(query)
+                ).slice(0, 5);
+
+                filtered.forEach(client => {
+                    const result = document.createElement('button');
+                    result.className = "w-full text-left px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium text-gray-700";
+                    result.innerText = client.full_name;
+                    result.onclick = () => {
+                        selectClient(client.id, result, client.full_name);
+                        document.getElementById('candidateList').innerHTML = `<span class="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold">${client.full_name}</span>`;
+                        results.innerHTML = '';
+                        searchInput.value = '';
+                    };
+                    results.appendChild(result);
+                });
+            };
+        }
+
+        function toggleTranscription() {
+            const text = document.getElementById('originalText');
+            const toggle = document.getElementById('transcriptToggle');
+            text.classList.toggle('hidden');
+            toggle.style.transform = text.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+
+        async function reprocessNote() {
+            const text = document.getElementById('textImproved').value;
+            if (!text.trim()) return;
+
+            document.getElementById('step-confirm').classList.add('opacity-50', 'pointer-events-none');
+            
+            try {
+                const res = await fetch(`${API_URL}/reprocess-text`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await res.json();
+                document.getElementById('textImproved').value = data.improved_text;
+            } catch (err) {
+                alert("Error reprocessing note");
+            } finally {
+                document.getElementById('step-confirm').classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        function discardNote() {
+            closeModal();
+            recordStatus.innerText = "Press to record";
+        }
+
+        // --- SAVE ---
+        document.getElementById('saveBtn').onclick = async () => {
+            if (!selectedClientId) {
+                alert("Please select a client from the list.");
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('monitor_id', '001d980c-d6e3-420b-8318-6077d0f188aa');
+            fd.append('client_id', selectedClientId);
+            fd.append('content_original', rawData.original_text);
+            fd.append('content_improved', document.getElementById('textImproved').value);
+            fd.append('content_client_ready', document.getElementById('textClient').value);
+
+            try {
+                await fetch(`${API_URL}/confirm-and-save`, { method: 'POST', body: fd });
+                closeModal();
+                loadDashboard();
+            } catch (e) {
+                alert("Error saving note");
+            }
+        };
+
+        // --- EDIT MODAL ---
+        function openEditNote(noteId, coachText, clientText) {
+            editingNoteId = noteId;
+            document.getElementById('editTextImproved').value = coachText;
+            document.getElementById('editTextClient').value = clientText;
+            document.getElementById('editModal').classList.replace('hidden', 'flex');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.replace('flex', 'hidden');
+            editingNoteId = null;
+        }
+
+        async function reprocessEditedNote() {
+            const text = document.getElementById('editTextImproved').value;
+            if (!text.trim()) return;
+
+            document.getElementById('editModal').classList.add('opacity-50', 'pointer-events-none');
+            
+            try {
+                const res = await fetch(`${API_URL}/reprocess-text`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await res.json();
+                document.getElementById('editTextImproved').value = data.improved_text;
+            } catch (err) {
+                alert("Error improving note");
+            } finally {
+                document.getElementById('editModal').classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        async function saveEditedNote() {
+            if (!editingNoteId) return;
+
+            try {
+                const fd = new FormData();
+                fd.append('note_id', editingNoteId);
+                fd.append('content_improved', document.getElementById('editTextImproved').value);
+                fd.append('content_client_ready', document.getElementById('editTextClient').value);
+
+                await fetch(`${API_URL}/update-note`, { method: 'POST', body: fd });
+                closeEditModal();
+                loadDashboard();
+            } catch (e) {
+                alert("Error updating note");
+            }
+        }
+
+        // Helpers
+        function openModal() { 
+            document.getElementById('modal').classList.replace('hidden', 'flex'); 
+            showStep('idle');
+            recordBtn.classList.remove('hidden');
+            document.getElementById('audioSpectrum').classList.add('hidden');
+            document.getElementById('recordingControls').classList.add('hidden');
+            recordStatus.classList.remove('hidden');
+            recordStatus.innerText = "Press to record";
+            recordStatus.classList.add('animate-pulse');
+            isCancelled = false;
+            document.getElementById('saveBtn').disabled = true;
+        }
+
+        function closeModal() { 
+            document.getElementById('modal').classList.replace('flex', 'hidden');
+            // Stop the microphone if it's still active
+            stopMicrophoneStream();
+            // Stop timer
+            clearInterval(recordingTimerInterval);
+            // Stop the recorder if it's active
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+            audioChunks = [];
+            recordBtn.classList.remove('hidden');
+            document.getElementById('audioSpectrum').classList.add('hidden');
+            document.getElementById('recordingControls').classList.add('hidden');
+            recordStatus.classList.remove('hidden');
+            recordStatus.innerText = "Press to record";
+            recordStatus.classList.add('animate-pulse');
+        }
+
+        function showStep(step) {
+            ['idle', 'loading', 'confirm'].forEach(s => document.getElementById(`step-${s}`).classList.add('hidden'));
+            document.getElementById(`step-${step}`).classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
