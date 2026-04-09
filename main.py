@@ -32,11 +32,15 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
-# Note: In production, use environment variables (.env)
-SUPABASE_URL = "https://bvgxxuvazygegnaybsdv.supabase.co" # Adjust according to your key
-SUPABASE_KEY = "sb_secret_jPS7QPajdbkkBZ-pgPf7UA_66WoxgIx"
-GEMINI_KEY = "AIzaSyCSp1bVcCguUWHj1tbiLMQjEYkh1wf5FP4"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+# All credentials from environment variables
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+GEMINI_KEY = os.getenv("GEMINI_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+# Validate required environment variables
+if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_KEY, GROQ_API_KEY]):
+    raise ValueError("Missing required environment variables: SUPABASE_URL, SUPABASE_KEY, GEMINI_KEY, GROQ_API_KEY")
 
 # Initialize Clients
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
