@@ -4,7 +4,16 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port 8001
+    # IMPORTANTE: Usamos $PORT para que Render asigne el correcto automáticamente
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.13.0
+        value: 3.11.10
+      - key: SUPABASE_URL
+        sync: false # Esto te permite poner el valor real en el panel de Render
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GEMINI_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
