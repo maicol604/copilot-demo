@@ -38,6 +38,17 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 GEMINI_KEY = os.getenv("GEMINI_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+if not SUPABASE_URL:
+    print("ERROR: SUPABASE_URL no configurada")
+if not SUPABASE_KEY:
+    print("ERROR: SUPABASE_KEY no configurada")
+
+# Inicialización segura
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    print(f"Error inicializando Supabase: {e}")
+
 # Validate required environment variables
 if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_KEY, GROQ_API_KEY]):
     raise ValueError("Missing required environment variables: SUPABASE_URL, SUPABASE_KEY, GEMINI_KEY, GROQ_API_KEY")
